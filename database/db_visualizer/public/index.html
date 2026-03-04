@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+
+        .sidebar h3 {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            font-size: 16px;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            color: #666;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+
+        .refresh-btn.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .db-list {
+            padding: 10px;
+        }
+
+        .db-item {
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .db-item:hover {
+            background: #f0f0f0;
+        }
+
+        .db-item.active {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .tables-list {
+            display: none;
+            padding-left: 20px;
+        }
+
+        .tables-list.show {
+            display: block;
+        }
+
+        .table-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 2px 0;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .table-item:hover {
+            background: #f5f5f5;
+        }
+
+        .table-item.active {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .content {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 500px;
+            overflow: hidden;
+        }
+
+        .content-header {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .content-body {
+            padding: 20px;
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        .data-table th {
+            background: #f8f9fa;
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+            font-size: 14px;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            white-space: nowrap;
+        }
+
+        .data-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 13px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .data-table td.expanded {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .data-table td.clickable {
+            cursor: pointer;
+            position: relative;
+        }
+
+        .data-table td.clickable:hover {
+            background: #f0f8ff;
+        }
+
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .value-null {
+            color: #999;
+            font-style: italic;
+        }
+
+        .value-object {
+            color: #1976d2;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .value-object:hover {
+            text-decoration: underline;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .info {
+            background: #e3f2fd;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #1565c0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .scroll-hint {
+            font-size: 12px;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .table-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Database Viewer</h1>
+            <p>Browse tables and data from connected databases</p>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>
+                    <span>Databases</span>
+                    <button class="refresh-btn" onclick="refreshDatabases()" title="Refresh databases">
+                        ⟳
+                    </button>
+                </h3>
+                <div class="db-list" id="dbList">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="content-header">
+                    <div id="contentHeader">Select a database and table to view data</div>
+                </div>
+                <div class="content-body">
+                    <div id="contentBody">
+                        <div class="empty-state">
+                            <h2>No data selected</h2>
+                            <p>Choose a database from the sidebar to get started</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDb = null;
+        let currentTable = null;
+
+        // Utility functions
+        const showLoading = (element, message = 'Loading...') => {
+            element.innerHTML = `<div class="loading">${message}</div>`;
+        };
+
+        const showError = (element, message) => {
+            element.innerHTML = `<div class="error">Error: ${message}</div>`;
+        };
+
+        const showEmptyState = (element, title, message) => {
+            element.innerHTML = `<div class="empty-state"><h2>${title}</h2><p>${message}</p></div>`;
+        };
+
+        const setActiveState = (element, selector, activeClass = 'active') => {
+            document.querySelectorAll(selector).forEach(item => item.classList.remove(activeClass));
+            if (element) element.classList.add(activeClass);
+        };
+
+        const fetchData = async (url) => {
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            return data;
+        };
+
+        // Database functions
+        async function loadDatabases() {
+            const dbList = document.getElementById('dbList');
+            
+            try {
+                const databases = await fetchData('/api/databases');
+                
+                if (databases.length === 0) {
+                    showError(dbList, 'No databases available');
+                    return;
+                }
+                
+                dbList.innerHTML = databases.map(db => `
+                    <div class="db-item">
+                        <div onclick="toggleDatabase('${db}')">${db.toUpperCase()}</div>
+                        <div class="tables-list" id="tables-${db}"></div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                showError(dbList, error.message);
+                console.error('Error:', error);
+            }
+        }
+
+        async function refreshDatabases() {
+            const refreshBtn = document.querySelector('.refresh-btn');
+            refreshBtn.classList.add('spinning');
+            
+            currentDb = null;
+            currentTable = null;
+            
+            document.getElementById('contentHeader').textContent = 'Select a database and table to view data';
+            showEmptyState(
+                document.getElementById('contentBody'),
+                'No data selected',
+                'Choose a database from the sidebar to get started'
+            );
+            
+            await loadDatabases();
+            refreshBtn.classList.remove('spinning');
+        }
+
+        async function toggleDatabase(db) {
+            const tablesList = document.getElementById(`tables-${db}`);
+            const dbItem = tablesList.parentElement;
+            
+            setActiveState(null, '.db-item');
+            document.querySelectorAll('.tables-list').forEach(list => list.classList.remove('show'));
+            
+            if (currentDb === db && tablesList.classList.contains('show')) {
+                currentDb = null;
+                return;
+            }
+            
+            currentDb = db;
+            setActiveState(dbItem, '.db-item');
+            tablesList.classList.add('show');
+            
+            await loadTables(db);
+        }
+
+        async function loadTables(db) {
+            const tablesList = document.getElementById(`tables-${db}`);
+            showLoading(tablesList, 'Loading tables...');
+            
+            try {
+                const tables = await fetchData(`/api/${db}/tables`);
+                
+                if (tables.length === 0) {
+                    tablesList.innerHTML = '<div style="padding: 10px; color: #666; font-size: 12px;">No tables found</div>';
+                    return;
+                }
+                
+                tablesList.innerHTML = tables.map(table => {
+                    const tableName = table.table_name || table.name || Object.values(table)[0];
+                    return `<div class="table-item" onclick="loadTableData('${db}', '${tableName}')">${tableName}</div>`;
+                }).join('');
+                
+            } catch (error) {
+                showError(tablesList, error.message);
+            }
+        }
+
+        async function loadTableData(db, tableName) {
+            setActiveState(event.target, '.table-item');
+            currentTable = tableName;
+            
+            const contentHeader = document.getElementById('contentHeader');
+            const contentBody = document.getElementById('contentBody');
+            
+            contentHeader.textContent = `${db.toUpperCase()} > ${tableName}`;
+            showLoading(contentBody, 'Loading data...');
+            
+            try {
+                const data = await fetchData(`/api/${db}/tables/${tableName}/data?limit=50`);
+                
+                if (data.length === 0) {
+                    showEmptyState(contentBody, 'No data', 'This table is empty');
+                    return;
+                }
+                
+                renderTable(contentBody, data);
+                
+            } catch (error) {
+                showError(contentBody, `Loading data: ${error.message}`);
+            }
+        }
+
+        function renderTable(container, data) {
+            const columns = Object.keys(data[0]);
+            const hasWideContent = data.some(row => 
+                columns.some(col => JSON.stringify(row[col]).length > 50)
+            );
+            
+            const tableHtml = `
+                <div class="info">
+                    <span>Showing ${data.length} records (max 50)</span>
+                    ${hasWideContent ? '<span class="scroll-hint">← Scroll horizontally to see more →</span>' : ''}
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>${columns.map(col => `<th>${col}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody>
+                            ${data.map(row => `
+                                <tr>
+                                    ${columns.map(col => renderCell(row[col])).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            container.innerHTML = tableHtml;
+        }
+
+        function renderCell(value) {
+            if (value === null || value === undefined) {
+                return '<td><span class="value-null">NULL</span></td>';
+            }
+            
+            if (typeof value === 'object') {
+                const stringified = JSON.stringify(value, null, 2);
+                return `<td class="clickable">
+                    <span class="value-object" onclick="expandCell(this)" data-full="${encodeURIComponent(stringified)}">
+                        ${JSON.stringify(value)}
+                    </span>
+                </td>`;
+            }
+            
+            const strValue = String(value);
+            if (strValue.length > 50) {
+                return `<td class="clickable">
+                    <span onclick="expandCell(this)" data-full="${encodeURIComponent(strValue)}">
+                        ${strValue}
+                    </span>
+                </td>`;
+            }
+            
+            return `<td>${strValue}</td>`;
+        }
+
+        function expandCell(element) {
+            const td = element.parentElement;
+            const fullContent = decodeURIComponent(element.getAttribute('data-full'));
+            const isExpanded = td.classList.contains('expanded');
+            
+            td.classList.toggle('expanded');
+            
+            if (element.classList.contains('value-object')) {
+                element.textContent = isExpanded ? JSON.stringify(JSON.parse(fullContent)) : fullContent;
+            } else {
+                element.textContent = isExpanded ? fullContent.substring(0, 50) + '...' : fullContent;
+            }
+        }
+
+        // Initialize
+        loadDatabases();
+    </script>
+</body>
+</html>
