@@ -133,6 +133,12 @@ EOF
 echo "psql postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}" > db_connection.txt
 echo "Connection string saved to db_connection.txt"
 
+# Initialize SnapChef schema + seed (idempotent)
+# Note: we execute via psql to ensure this works with the existing container scripts.
+echo "Initializing SnapChef schema (demo-auth mode)..."
+sudo -u postgres ${PG_BIN}/psql -p ${DB_PORT} -d ${DB_NAME} -v ON_ERROR_STOP=1 -f "$(dirname "$0")/init_snapchef_schema.sql"
+echo "SnapChef schema initialization complete."
+
 # Save environment variables to a file
 cat > db_visualizer/postgres.env << EOF
 export POSTGRES_URL="postgresql://localhost:${DB_PORT}/${DB_NAME}"
